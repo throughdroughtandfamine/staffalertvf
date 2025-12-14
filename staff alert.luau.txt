@@ -1,0 +1,163 @@
+local config = {
+    group_ids = {693335996},
+    notification_duration = 5,
+
+    join_color = Color3.fromRGB(255, 50, 50),
+    leave_color = Color3.fromRGB(50, 255, 50),
+    list_color = Color3.fromRGB(255, 255, 100),
+
+    staff_list_key = Enum.KeyCode.F4,
+}
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+_G.__StaffTracker = _G.__StaffTracker or {}
+if _G.__StaffTracker.connections then
+    for _, c in ipairs(_G.__StaffTracker.connections) do
+        pcall(function() c:Disconnect() end)
+    end
+end
+_G.__StaffTracker.connections = {}
+
+local knownStaff = {}
+
+local function safe_is_staff(plr)
+    for _, groupId in ipairs(config.group_ids) do
+        local ok, inGroup = pcall(function()
+            return plr:IsInGroup(groupId)
+        end)
+        if ok and inGroup then
+            return true
+        end
+    end
+    return false
+end
+
+local function display_name(plr)
+    if plr.DisplayName ~= plr.Name then
+        return string.format("%s (@%s)", plr.DisplayName, plr.Name)
+    end
+    return plr.Name
+end
+
+local function build_gui()
+    local player = Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+
+    local old = playerGui:FindFirstChild("staff_notifications")
+    if old then old:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "staff_notifications"
+    gui.ResetOnSpawn = false
+    gui.Parent = playerGui
+
+    local holder = Instance.new("Frame")
+    holder.BackgroundTransparency = 1
+    holder.AnchorPoint = Vector2.new(0.5, 0)
+    holder.Position = UDim2.new(0.5, 0, 0, 40)
+    holder.Size = UDim2.new(0, 520, 1, -40)
+    holder.Parent = gui
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 6)
+    layout.Parent = holder
+
+    return holder
+end
+
+local holder = build_gui()
+
+local function show_notification(text, color)
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1, 0, 0, 36)
+    label.Text = text
+    label.TextColor3 = color
+    label.TextScaled = true
+    label.Font = Enum.Font.Oswald
+    label.Parent = holder
+
+    task.spawn(function()
+        task.wait(config.notification_duration)
+        for i = 0, 1, 0.08 do
+            label.TextTransparency = i
+            task.wait(0.03)
+        end
+        label:Destroy()
+    end)
+end
+
+local function notify_join(plr)
+    show_notification(plr.Name .. " joined", config.join_color)
+end
+
+local function notify_leave(plr)
+    show_notification(plr.Name .. " left", config.leave_color)
+end
+
+local function get_staff_list()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if knownStaff[plr.UserId] then
+            table.insert(list, display_name(plr))
+        end
+    end
+    table.sort(list)
+    return list
+end
+
+for _, plr in ipairs(Players:GetPlayers()) do
+    if safe_is_staff(plr) then
+        knownStaff[plr.UserId] = true
+        notify_join(plr)
+    end
+end
+
+table.insert(_G.__StaffTracker.connections,
+    Players.PlayerAdded:Connect(function(plr)
+        task.wait(0.5)
+        if safe_is_staff(plr) and not knownStaff[plr.UserId] then
+            knownStaff[plr.UserId] = true
+            notify_join(plr)
+        end
+    end)
+)
+
+table.insert(_G.__StaffTracker.connections,
+    Players.PlayerRemoving:Connect(function(plr)
+        if not knownStaff[plr.UserId] then return end
+        task.defer(function()
+            if Players:GetPlayerByUserId(plr.UserId) == nil then
+                knownStaff[plr.UserId] = nil
+                notify_leave(plr)
+            end
+        end)
+    end)
+)
+
+table.insert(_G.__StaffTracker.connections,
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode ~= config.staff_list_key then return end
+
+        local staff_list = get_staff_list()
+        show_notification(("Staff in server: %d"):format(#staff_list), config.list_color)
+
+        if #staff_list == 0 then
+            show_notification("No staff in server", config.list_color)
+            return
+        end
+
+        task.wait(0.2)
+        show_notification("--- STAFF LIST ---", config.list_color)
+        task.wait(0.15)
+
+        for _, name in ipairs(staff_list) do
+            show_notification(name, config.list_color)
+            task.wait(0.1)
+        end
+    end)
+)
+
