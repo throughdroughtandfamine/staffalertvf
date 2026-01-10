@@ -7,6 +7,13 @@ local config = {
     list_color = Color3.fromRGB(255, 255, 100),
 
     staff_list_key = Enum.KeyCode.F4,
+
+    -- Staff override IDs (people that have in-game whitelist or similar)
+    extra_staff_ids = {
+        [6203233210] = true,
+    },
+
+    announce_existing_on_exec = true,
 }
 
 local Players = game:GetService("Players")
@@ -21,16 +28,30 @@ end
 _G.__StaffTracker.connections = {}
 
 local knownStaff = {}
+local staffCache = {}
 
-local function safe_is_staff(plr)
+local function is_staff(plr)
+    if config.extra_staff_ids[plr.UserId] then
+        staffCache[plr.UserId] = true
+        return true
+    end
+
+    local cached = staffCache[plr.UserId]
+    if cached ~= nil then
+        return cached
+    end
+
     for _, groupId in ipairs(config.group_ids) do
         local ok, inGroup = pcall(function()
             return plr:IsInGroup(groupId)
         end)
         if ok and inGroup then
+            staffCache[plr.UserId] = true
             return true
         end
     end
+
+    staffCache[plr.UserId] = false
     return false
 end
 
@@ -77,39 +98,55 @@ local function show_notification(text, color)
     label.TextColor3 = color
     label.TextScaled = true
     label.Font = Enum.Font.Oswald
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1.5
+    stroke.Transparency = 0.3
+    stroke.Parent = label
+
     label.Parent = holder
 
     task.spawn(function()
         task.wait(config.notification_duration)
         for i = 0, 1, 0.08 do
+            if not label.Parent then return end
             label.TextTransparency = i
+            stroke.Transparency = math.clamp(0.3 + i, 0, 1)
             task.wait(0.03)
         end
-        label:Destroy()
+        if label.Parent then label:Destroy() end
     end)
 end
 
 local function notify_join(plr)
-    show_notification(plr.Name .. " joined", config.join_color)
+    show_notification(display_name(plr) .. " joined", config.join_color)
 end
 
 local function notify_leave(plr)
-    show_notification(plr.Name .. " left", config.leave_color)
+    show_notification(display_name(plr) .. " left", config.leave_color)
 end
 
 local function get_staff_list()
-    local list = {}
+    local staffPlayers = {}
     for _, plr in ipairs(Players:GetPlayers()) do
         if knownStaff[plr.UserId] then
-            table.insert(list, display_name(plr))
+            table.insert(staffPlayers, plr)
         end
     end
-    table.sort(list)
-    return list
+
+    table.sort(staffPlayers, function(a, b)
+        return a.Name:lower() < b.Name:lower()
+    end)
+
+    local out = {}
+    for _, plr in ipairs(staffPlayers) do
+        table.insert(out, display_name(plr))
+    end
+    return out
 end
 
 for _, plr in ipairs(Players:GetPlayers()) do
-    if safe_is_staff(plr) then
+    if is_staff(plr) then
         knownStaff[plr.UserId] = true
         notify_join(plr)
     end
@@ -118,7 +155,7 @@ end
 table.insert(_G.__StaffTracker.connections,
     Players.PlayerAdded:Connect(function(plr)
         task.wait(0.5)
-        if safe_is_staff(plr) and not knownStaff[plr.UserId] then
+        if is_staff(plr) and not knownStaff[plr.UserId] then
             knownStaff[plr.UserId] = true
             notify_join(plr)
         end
@@ -127,13 +164,10 @@ table.insert(_G.__StaffTracker.connections,
 
 table.insert(_G.__StaffTracker.connections,
     Players.PlayerRemoving:Connect(function(plr)
-        if not knownStaff[plr.UserId] then return end
-        task.defer(function()
-            if Players:GetPlayerByUserId(plr.UserId) == nil then
-                knownStaff[plr.UserId] = nil
-                notify_leave(plr)
-            end
-        end)
+        if knownStaff[plr.UserId] then
+            knownStaff[plr.UserId] = nil
+            notify_leave(plr)
+        end
     end)
 )
 
@@ -160,4 +194,3 @@ table.insert(_G.__StaffTracker.connections,
         end
     end)
 )
-
