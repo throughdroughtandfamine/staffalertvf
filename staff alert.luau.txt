@@ -1,5 +1,5 @@
 local config = {
-    group_ids = {380635460},
+    group_ids = {128056089},
     notification_duration = 5,
 
     join_color = Color3.fromRGB(255, 50, 50),
@@ -194,4 +194,5 @@ table.insert(_G.__StaffTracker.connections,
         end
     end)
 )
+
 
