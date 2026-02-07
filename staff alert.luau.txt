@@ -12,6 +12,7 @@ local config = {
     extra_staff_ids = {
         [6203233210] = true,
         [4559062275] = true,
+        [1675953525] = true,
     },
 
     announce_existing_on_exec = true,
@@ -195,6 +196,7 @@ table.insert(_G.__StaffTracker.connections,
         end
     end)
 )
+
 
 
 
