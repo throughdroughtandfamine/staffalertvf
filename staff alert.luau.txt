@@ -15,6 +15,7 @@ local config = {
         [1675953525] = true,
         [555909464] = true,
         [43829894] = true,
+        [3025545586] = true,
     },
 
     announce_existing_on_exec = true,
@@ -198,6 +199,7 @@ table.insert(_G.__StaffTracker.connections,
         end
     end)
 )
+
 
 
 
