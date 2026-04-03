@@ -1,5 +1,5 @@
 local config = {
-    group_ids = {1072210610},
+    group_ids = {319522694},
     notification_duration = 5,
 
     join_color = Color3.fromRGB(255, 50, 50),
